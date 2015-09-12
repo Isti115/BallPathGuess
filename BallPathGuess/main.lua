@@ -1,7 +1,7 @@
 function love.load()
 	gridLeft, gridTop = 100, 100
 	gridWidth, gridHeight = 500, 500
-	gridSizeX, gridSizeY = 10, 10
+	gridSizeX, gridSizeY = 7, 7
 	
 	drawnGridSizeX, drawnGridSizeY = gridSizeX + 2, gridSizeY + 2
 	
@@ -11,11 +11,11 @@ function love.load()
 	activePath = nil
 	activePathIterator = -1
 	
-	bounceTreshold = 5
-	
 	currentBallX, currentBallY = -1, -1
 	ballR = gridWidth / drawnGridSizeX / 4
 	ballSpeed = 5
+	
+	bounceTreshold = gridWidth / drawnGridSizeX / 8
 	
 	showLines = true
 end
@@ -49,8 +49,8 @@ function love.keypressed(key)
 				end
 			end
 			if valid then
-				objects[#objects + 1] = currentObject
-				cellGrid[currentObject.xPos .. "|" .. currentObject.yPos] = currentObject.direction
+				objects[#objects + 1] = currentObject.xPos .. "|" .. currentObject.yPos
+				cellGrid[currentObject.xPos .. "|" .. currentObject.yPos] = currentObject
 			end
 		end
 	end
@@ -87,11 +87,15 @@ function love.update(dt)
 		if math.abs(currentTarget.X - currentBallX) > bounceTreshold then
 			arrived = false
 			currentBallX = currentBallX + math.sign(currentTarget.X - currentBallX) * ballSpeed
+		elseif currentTarget.X - currentBallX ~= 0 then
+			currentBallX = currentBallX + math.sign(currentTarget.X - currentBallX)
 		end
 		
 		if math.abs(currentTarget.Y - currentBallY) > bounceTreshold then
 			arrived = false
 			currentBallY = currentBallY + math.sign(currentTarget.Y - currentBallY) * ballSpeed
+		elseif currentTarget.Y - currentBallY ~= 0 then
+			currentBallY = currentBallY + math.sign(currentTarget.Y - currentBallY)
 		end
 		
 		if arrived then
@@ -132,20 +136,22 @@ function love.draw()
 	
 	if showLines then
 		for i = 1, #objects do
-			love.graphics.print(objects[i].direction)
+			currentObject = cellGrid[objects[i]]
+			
+			love.graphics.print(currentObject.direction)
 			
 			halfCellWidth = gridWidth / drawnGridSizeX / 2
 			cellHeight = gridHeight / drawnGridSizeY
 			
-			currentCellX = gridLeft + (gridWidth / drawnGridSizeX) * (objects[i].xPos + 0.5)
-			currentCellY = gridTop + (gridHeight / drawnGridSizeY) * (objects[i].yPos)
-			love.graphics.line(currentCellX + objects[i].direction * (halfCellWidth - 5), currentCellY + 5,
-							   currentCellX - objects[i].direction * (halfCellWidth - 5), currentCellY + cellHeight - 5)
+			currentCellX = gridLeft + (gridWidth / drawnGridSizeX) * (currentObject.xPos + 0.5)
+			currentCellY = gridTop + (gridHeight / drawnGridSizeY) * (currentObject.yPos)
+			love.graphics.line(currentCellX + currentObject.direction * (halfCellWidth - 5), currentCellY + 5,
+							   currentCellX - currentObject.direction * (halfCellWidth - 5), currentCellY + cellHeight - 5)
 		end
 	end
 	
 	if activePath then
-		love.graphics.circle("fill", currentBallX - 20, currentBallY - 20, ballR)
+		love.graphics.circle("fill", currentBallX, currentBallY, ballR)
 	end
 end
 
@@ -180,6 +186,11 @@ function makeBallPath(startX, startY, startDir)
 	
 	moveList = {}
 	
+	currentMove = {}
+	currentMove.from = {ballX, ballY}
+	currentMove.to = {ballX, ballY}
+	moveList[#moveList + 1] = currentMove
+	
 	finished = false
 	
 	while not finished do
@@ -187,11 +198,6 @@ function makeBallPath(startX, startY, startDir)
 		
 		currentMove = {}
 		currentMove.from = {ballX, ballY}
-		
-		-- while not cellGrid[ballX .. "|" .. ballY] and ballX > 0 and ballX <= gridSizeX and ballY > 0 and ballY <= gridSizeY do
-		-- 	ballX = ballX + directionMap[direction].X
-		-- 	ballY = ballY + directionMap[direction].Y
-		-- end
 		
 		repeat
 			ballX = ballX + directionMap[direction].X
@@ -206,11 +212,11 @@ function makeBallPath(startX, startY, startDir)
 		if ballX > 0 and ballX <= gridSizeX and ballY > 0 and ballY <= gridSizeY then
 			if direction % 2 == 1 then
 				print("dir" .. direction)
-				direction = (direction + cellGrid[ballX .. "|" .. ballY] - 1) % 4 + 1
+				direction = (direction + cellGrid[ballX .. "|" .. ballY].direction - 1) % 4 + 1
 				print("dir" .. direction)
 			else
 				print("dir" .. direction)
-				direction = (direction - cellGrid[ballX .. "|" .. ballY] - 1) % 4 + 1
+				direction = (direction - cellGrid[ballX .. "|" .. ballY].direction - 1) % 4 + 1
 				print("dir" .. direction)
 			end
 			-- print("moved: " .. ballX .. " | " .. ballY)
@@ -226,12 +232,12 @@ function pathToCoordinates(path)
 	coordinateList = {}
 	
 	for i = 1, #path do
+		-- coordinateList[#coordinateList + 1] = {}
+		-- coordinateList[#coordinateList].X = math.floor(gridLeft + (gridWidth / drawnGridSizeX) * (path[i].from[1] + 1))
+		-- coordinateList[#coordinateList].Y = math.floor(gridTop + (gridHeight / drawnGridSizeY) * (path[i].from[2] + 1))
 		coordinateList[#coordinateList + 1] = {}
-		coordinateList[#coordinateList].X = math.floor(gridLeft + (gridWidth / drawnGridSizeX) * (path[i].from[1] + 1))
-		coordinateList[#coordinateList].Y = math.floor(gridTop + (gridHeight / drawnGridSizeY) * (path[i].from[2] + 1))
-		coordinateList[#coordinateList + 1] = {}
-		coordinateList[#coordinateList].X = math.floor(gridLeft + (gridWidth / drawnGridSizeX) * (path[i].to[1] + 1))
-		coordinateList[#coordinateList].Y = math.floor(gridTop + (gridHeight / drawnGridSizeY) * (path[i].to[2] + 1))
+		coordinateList[#coordinateList].X = math.floor(gridLeft + (gridWidth / drawnGridSizeX) * (path[i].to[1] + 0.5))
+		coordinateList[#coordinateList].Y = math.floor(gridTop + (gridHeight / drawnGridSizeY) * (path[i].to[2] + 0.5))
 	end
 	
 	return coordinateList
