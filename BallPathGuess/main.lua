@@ -17,7 +17,11 @@ function love.load()
 	
 	bounceTreshold = gridWidth / drawnGridSizeX / 8
 	
-	showLines = true
+	showObjects = true
+	
+	objectShowTime = 3
+	
+	gameCount, score = 0, 0
 end
 
 function love.keypressed(key)
@@ -26,33 +30,27 @@ function love.keypressed(key)
 	end
 	
 	if key == "h" then
-		showLines = not showLines
+		showObjects = not showObjects
+	end
+	
+	if key == "g" then
+		inGame = true
+	end
+	
+	if key == "s" then
+		selectedCell = {}
+		
+		if math.random() < 0.5 then
+			selectedCell.X = math.floor(math.random() * 2) * (gridSizeX + 1)
+			selectedCell.Y = math.floor(math.random() * gridSizeY) + 1
+		else
+			selectedCell.X = math.floor(math.random() * gridSizeX) + 1
+			selectedCell.Y = math.floor(math.random() * 2) * (gridSizeY + 1)
+		end
 	end
 	
 	if key == " " then
-		objects = {}
-		cellGrid = {}
-		directions = {-1, 1}
-		
-		objectCount = (math.random() + math.random()) * (gridSizeX * gridSizeY / 5)
-		
-		for i = 1, objectCount do
-			currentObject = {}
-			currentObject.xPos = math.floor(math.random() * gridSizeX) + 1
-			currentObject.yPos = math.floor(math.random() * gridSizeY) + 1
-			currentObject.direction = directions[math.floor(math.random() * 2) + 1]
-			
-			valid = true
-			for j = 1, #objects do
-				if objects[j].xPos == currentObject.xPos and objects[j].yPos == currentObject.yPos then
-					valid = false
-				end
-			end
-			if valid then
-				objects[#objects + 1] = currentObject.xPos .. "|" .. currentObject.yPos
-				cellGrid[currentObject.xPos .. "|" .. currentObject.yPos] = currentObject
-			end
-		end
+		generateObjects()
 	end
 	
 	if key == "escape" then
@@ -79,6 +77,8 @@ function love.mousepressed(x, y, button)
 end
 
 function love.update(dt)
+	if inGame then updateGame(dt) end
+	
 	if activePath then
 		currentTarget = activePath[activePathIterator]
 		
@@ -110,6 +110,60 @@ function love.update(dt)
 	end
 end
 
+function updateGame(dt)
+	if gameState == nil then
+		generateObjects()
+		showTimeStart = love.timer.getTime()
+		gameState = "objectShowing"
+	end
+	
+	if gameState == "objectShowing" then
+		if love.timer.getTime() - showTimeStart > objectShowTime then
+			showObjects = false
+			
+			selectedCell = {}
+			
+			if math.random() < 0.5 then
+				selectedCell.X = math.floor(math.random() * 2) * (gridSizeX + 1)
+				selectedCell.Y = math.floor(math.random() * gridSizeY) + 1
+			else
+				selectedCell.X = math.floor(math.random() * gridSizeX) + 1
+				selectedCell.Y = math.floor(math.random() * 2) * (gridSizeY + 1)
+			end
+			
+			
+			gameState = "waitingForGuess"
+		end
+	end
+	
+	if gameState == "ballStarted" then
+		showObjects = true
+		gameState = "ballGoing"
+	end
+	
+	if gameState == "ballGoing" then
+		if activePath == nil then
+			if ballPathEnd[1] == selectedCell.X and ballPathEnd[2] == selectedCell.Y then
+				gameCount = gameCount + 1
+				score = score + 1
+				gameResult = "won"
+			else
+				gameCount = gameCount + 1
+				gameResult = "lost"
+			end
+			announceTimeStart = love.timer.getTime()
+			gameState = "announceResult"
+		end
+	end
+	
+	if gameState == "announceResult" then
+		if love.timer.getTime() - announceTimeStart > 3 then
+			gameState = nil
+			inGame = false
+		end
+	end
+end
+
 function love.draw()
 	love.graphics.setLineWidth(1)
 	
@@ -118,6 +172,11 @@ function love.draw()
 	love.graphics.rectangle("fill", gridLeft, gridTop + gridHeight - gridHeight / drawnGridSizeY, gridWidth, gridHeight / drawnGridSizeY)
 	love.graphics.rectangle("fill", gridLeft, gridTop, gridWidth / drawnGridSizeX, gridHeight)
 	love.graphics.rectangle("fill", gridLeft + gridWidth - gridWidth / drawnGridSizeX, gridTop, gridWidth / drawnGridSizeX, gridHeight)
+	
+	if inGame and (gameState == "waitingForGuess" or gameState == "ballGoing") then
+		love.graphics.setColor(0, 200, 0)
+		love.graphics.rectangle("fill", gridLeft + (gridWidth / drawnGridSizeX) * selectedCell.X, gridTop + (gridHeight / drawnGridSizeY) * selectedCell.Y, gridWidth / drawnGridSizeX, gridHeight / drawnGridSizeY)
+	end
 	
 	love.graphics.setColor(255, 255, 255)
 	
@@ -133,12 +192,9 @@ function love.draw()
 	
 	love.graphics.setLineWidth(3)
 	
-	
-	if showLines then
+	if showObjects then
 		for i = 1, #objects do
 			currentObject = cellGrid[objects[i]]
-			
-			love.graphics.print(currentObject.direction)
 			
 			halfCellWidth = gridWidth / drawnGridSizeX / 2
 			cellHeight = gridHeight / drawnGridSizeY
@@ -153,11 +209,46 @@ function love.draw()
 	if activePath then
 		love.graphics.circle("fill", currentBallX, currentBallY, ballR)
 	end
+	
+	if inGame and gameState == "announceResult" then
+		love.graphics.setFont(love.graphics.newFont(50))
+		love.graphics.print(gameResult, 800, 200, 0, 3, 3)
+	end
+	
+	love.graphics.print(score .. " / " .. gameCount)
 end
 
 -- Custom functions
 
+function generateObjects()
+	objects = {}
+	cellGrid = {}
+	directions = {-1, 1}
+	
+	objectCount = (math.random() + math.random()) * (gridSizeX * gridSizeY / 5)
+	
+	for i = 1, objectCount do
+		currentObject = {}
+		currentObject.xPos = math.floor(math.random() * gridSizeX) + 1
+		currentObject.yPos = math.floor(math.random() * gridSizeY) + 1
+		currentObject.direction = directions[math.floor(math.random() * 2) + 1]
+		
+		valid = true
+		for j = 1, #objects do
+			if objects[j].xPos == currentObject.xPos and objects[j].yPos == currentObject.yPos then
+				valid = false
+			end
+		end
+		if valid then
+			objects[#objects + 1] = currentObject.xPos .. "|" .. currentObject.yPos
+			cellGrid[currentObject.xPos .. "|" .. currentObject.yPos] = currentObject
+		end
+	end
+end
+
 function startBall(x, y, d)
+	if inGame and gameState == "waitingForGuess" then gameState = "ballStarted" end
+	
 	currentPath = makeBallPath(x, y, d)
 	coordinateList = pathToCoordinates(currentPath)
 	
@@ -224,6 +315,8 @@ function makeBallPath(startX, startY, startDir)
 			finished = true
 		end
 	end
+	
+	ballPathEnd = moveList[#moveList].to
 	
 	return moveList
 end
